@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Receipt Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        /* Splash Screen */
+        #splash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10000;
+            transition: opacity 0.5s;
+        }
+        
+        #splash.hide {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .splash-logo {
+            width: 100px;
+            height: 100px;
+            background: white;
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 50px;
+            margin-bottom: 20px;
+            animation: bounce 1s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .splash-text {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .splash-loader {
+            width: 150px;
+            height: 4px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .splash-bar {
+            height: 100%;
+            width: 0%;
+            background: white;
+            border-radius: 10px;
+            animation: load 2s ease-in-out forwards;
+        }
+        
+        @keyframes load {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+        
+        /* Main App */
+        #mainApp {
+            display: none;
+            padding: 15px;
+        }
+        
+        #mainApp.show {
+            display: block;
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .tabs {
+            display: flex;
+            background: #f0f0f0;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .form-section, .history-section {
+            padding: 20px;
+            display: none;
+        }
+        
+        .form-section.active, .history-section.active {
+            display: block;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+        
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 15px;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-preview {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .history-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .history-info h4 {
+            color: #333;
+            margin-bottom: 4px;
+        }
+        
+        .history-info p {
+            color: #888;
+            font-size: 12px;
+        }
+        
+        .history-amount {
+            font-size: 18px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        /* Preview Modal */
+        .preview-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .preview-modal.show {
+            display: flex;
+        }
+        
+        .preview-content {
+            background: white;
+            border-radius: 20px;
+            max-width: 350px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .preview-header {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px 20px 0 0;
+            text-align: center;
+        }
+        
+        #previewReceipt {
+            padding: 20px;
+            background: white;
+        }
+        
+        .receipt-box {
+            border: 2px solid #333;
+            padding: 20px;
+            background: #fff;
+        }
+        
+        .receipt-title {
+            text-align: center;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .receipt-title h2 {
+            color: #667eea;
+            font-size: 20px;
+        }
+        
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .receipt-row span:first-child {
+            color: #666;
+        }
+        
+        .receipt-row span:last-child {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .amount-highlight {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 15px 0;
+        }
+        
+        .amount-highlight h3 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .paid-stamp {
+            text-align: center;
+            color: #4CAF50;
+            font-size: 28px;
+            font-weight: bold;
+            border: 3px solid #4CAF50;
+            padding: 10px;
+            margin: 15px 0;
+            transform: rotate(-5deg);
+        }
+        
+        .preview-actions {
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .btn-pdf {
+            background: #f44336;
+            color: white;
+        }
+        
+        .btn-jpg {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .btn-whatsapp {
+            background: #25d366;
+            color: white;
+            grid-column: 1 / -1;
+        }
+        
+        .btn-close {
+            background: #f0f0f0;
+            color: #333;
+            grid-column: 1 / -1;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+        
+        .empty-state-icon {
+            font-size: 60px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Splash Screen -->
+    <div id="splash">
+        <div class="splash-logo">📝</div>
+        <div class="splash-text">Smart Receipt</div>
+        <div class="splash-loader">
+            <div class="splash-bar"></div>
+        </div>
+    </div>
+    
+    <!-- Main App -->
+    <div id="mainApp">
+        <div class="container">
+            <div class="header">
+                <h1>📚 Smart Receipt</h1>
+                <p>Professional Fee Management</p>
+            </div>
+            
+            <div class="tabs">
+                <div class="tab active" onclick="showTab('form')">📝 New</div>
+                <div class="tab" onclick="showTab('history')">📜 History</div>
+            </div>
+            
+            <!-- Form Section -->
+            <div class="form-section active" id="formSection">
+                <div class="input-group">
+                    <label>Student Name *</label>
+                    <input type="text" id="sName" placeholder="Enter name">
+                </div>
+                
+                <div class="input-group">
+                    <label>Father's Name *</label>
+                    <input type="text" id="fName" placeholder="Enter father's name">
+                </div>
+                
+                <div class="input-group">
+                    <label>Class *</label>
+                    <input type="text" id="sClass" placeholder="e.g., 10th">
+                </div>
+                
+                <div class="input-group">
+                    <label>Month *</label>
+                    <select id="sMonth">
+                        <option value="">Select Month</option>
+                        <option>January 2025</option>
+                        <option>February 2025</option>
+                        <option>March 2025</option>
+                        <option>April 2025</option>
+                        <option>May 2025</option>
+                        <option>June 2025</option>
+                        <option>July 2025</option>
+                        <option>August 2025</option>
+                        <option>September 2025</option>
+                        <option>October 2025</option>
+                        <option>November 2025</option>
+                        <option>December 2025</option>
+                    </select>
+                </div>
+                
+                <div class="input-group">
+                    <label>Amount (PKR) *</label>
+                    <input type="number" id="sAmount" placeholder="Enter amount">
+                </div>
+                
+                <div class="input-group">
+                    <label>Payment Mode</label>
+                    <select id="sPayment">
+                        <option value="Cash">Cash</option>
+                        <option value="Online">Online Transfer</option>
+                        <option value="Card">Card</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-preview" onclick="showPreview()">
+                    👁️ Preview Receipt
+                </button>
+            </div>
+            
+            <!-- History Section -->
+            <div class="history-section" id="historySection">
+                <div id="historyList">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>No receipts yet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Preview Modal -->
+    <div class="preview-modal" id="previewModal">
+        <div class="preview-content">
+            <div class="preview-header">
+                <h3>Receipt Preview</h3>
+                <p>Confirm before download</p>
+            </div>
+            
+            <div id="previewReceipt">
+                <!-- Receipt will be inserted here -->
+            </div>
+            
+            <div class="preview-actions">
+                <button class="btn btn-pdf" onclick="downloadPDF()">
+                    📄 PDF
+                </button>
+                <button class="btn btn-jpg" onclick="downloadJPG()">
+                    🖼️ JPG
+                </button>
+                <button class="btn btn-whatsapp" onclick="shareWhatsApp()">
+                    📱 WhatsApp
+                </button>
+                <button class="btn btn-close" onclick="closePreview()">
+                    ✕ Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Splash screen
+        setTimeout(() => {
+            document.getElementById('splash').classList.add('hide');
+            document.getElementById('mainApp').classList.add('show');
+        }, 2000);
+        
+        // Data storage
+        let receipts = JSON.parse(localStorage.getItem('receipts') || '[]');
+        let currentReceipt = null;
+        let receiptNum = parseInt(localStorage.getItem('receiptNum') || '1000');
+        
+        // Number to words
+        function numWords(num) {
+            const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+            const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+            const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+            
+            if (num === 0) return 'Zero';
+            if (num < 10) return ones[num];
+            if (num < 20) return teens[num - 10];
+            if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? ' ' + ones[num % 10] : '');
+            if (num < 1000) return ones[Math.floor(num / 100)] + ' Hundred' + (num % 100 ? ' ' + numWords(num % 100) : '');
+            if (num < 100000) return numWords(Math.floor(num / 1000)) + ' Thousand' + (num % 1000 ? ' ' + numWords(num % 1000) : '');
+            return num.toString();
+        }
+        
+        // Tab switch
+        function showTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.form-section, .history-section').forEach(s => s.classList.remove('active'));
+            
+            if (tab === 'form') {
+                document.querySelectorAll('.tab')[0].classList.add('active');
+                document.getElementById('formSection').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('historySection').classList.add('active');
+                loadHistory();
+            }
+        }
+        
+        // Get form data
+        function getData() {
+            const name = document.getElementById('sName').value.trim();
+            const fname = document.getElementById('fName').value.trim();
+            const cls = document.getElementById('sClass').value.trim();
+            const month = document.getElementById('sMonth').value;
+            const amt = document.getElementById('sAmount').value;
+            const pay = document.getElementById('sPayment').value;
+            
+            if (!name || !fname || !cls || !month || !amt) {
+                alert('Please fill all required fields!');
+                return null;
+            }
+            
+            receiptNum++;
+            localStorage.setItem('receiptNum', receiptNum);
+            
+            return {
+                id: 'RCP-' + receiptNum,
+                date: new Date().toLocaleDateString('en-GB'),
+                name, fname, cls, month, 
+                amt: parseInt(amt), pay,
+                words: numWords(parseInt(amt))
+            };
+        }
+        
+        // Show preview
+        function showPreview() {
+            const d = getData();
+            if (!d) return;
+            
+            currentReceipt = d;
+            
+            const html = `
+                <div class="receipt-box" id="receiptBox">
+                    <div class="receipt-title">
+                        <h2>FEE RECEIPT</h2>
+                        <p>Tuition Center</p>
+                    </div>
+                    
+                    <div class="receipt-row">
+                        <span>Receipt No:</span>
+                        <span>${d.id}</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Date:</span>
+                        <span>${d.date}</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Payment:</span>
+                        <span>${d.pay}</span>
+                    </div>
+                    
+                    <hr style="margin: 15px 0; border: none; border-top: 1px solid #ddd;">
+                    
+                    <div class="receipt-row">
+                        <span>Student:</span>
+                        <span>${d.name}</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Father:</span>
+                        <span>${d.fname}</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Class:</span>
+                        <span>${d.cls}</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Month:</span>
+                        <span>${d.month}</span>
+                    </div>
+                    
+                    <div class="amount-highlight">
+                        <h3>PKR ${d.amt.toLocaleString()}</h3>
+                        <p>${d.words} Rupees Only</p>
+                    </div>
+                    
+                    <div class="paid-stamp">PAID ✓</div>
+                </div>
+            `;
+            
+            document.getElementById('previewReceipt').innerHTML = html;
+            document.getElementById('previewModal').classList.add('show');
+        }
+        
+        // Close preview
+        function closePreview() {
+            document.getElementById('previewModal').classList.remove('show');
+        }
+        
+        // Download PDF
+        function downloadPDF() {
+            if (!currentReceipt) return;
+            
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const d = currentReceipt;
+            
+            // Header
+            doc.setFillColor(102, 126, 234);
+            doc.rect(0, 0, 210, 40, 'F');
+            
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(20);
+            doc.text('FEE RECEIPT', 105, 20, { align: 'center' });
+            doc.setFontSize(12);
+            doc.text('Tuition Center', 105, 30, { align: 'center' });
+            
+            // Info
+            let y = 50;
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(11);
+            
+            doc.text(`Receipt No: ${d.id}`, 20, y);
+            y += 10;
+            doc.text(`Date: ${d.date}`, 20, y);
+            y += 10;
+            doc.text(`Payment: ${d.pay}`, 20, y);
+            y += 15;
+            
+            doc.text(`Student: ${d.name}`, 20, y);
+            y += 10;
+            doc.text(`Father: ${d.fname}`, 20, y);
+            y += 10;
+            doc.text(`Class: ${d.cls}`, 20, y);
+            y += 10;
+            doc.text(`Month: ${d.month}`, 20, y);
+            y += 15;
+            
+            // Amount
+            doc.setFillColor(102, 126, 234);
+            doc.rect(20, y, 170, 25, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(16);
+            doc.text(`PKR ${d.amt.toLocaleString()}`, 105, y + 12, { align: 'center' });
+            doc.setFontSize(10);
+            doc.text(`${d.words} Rupees Only`, 105, y + 20, { align: 'center' });
+            
+            // Paid
+            y += 40;
+            doc.setTextColor(76, 175, 80);
+            doc.setFontSize(30);
+            doc.text('PAID', 105, y, { align: 'center' });
+            
+            doc.save(`${d.id}.pdf`);
+            
+            saveReceipt();
+            closePreview();
+            clearForm();
+        }
+        
+        // Download JPG
+        function downloadJPG() {
+            if (!currentReceipt) return;
+            
+            const receiptBox = document.getElementById('receiptBox');
+            
+            html2canvas(receiptBox, {
+                scale: 2,
+                backgroundColor: '#ffffff'
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `${currentReceipt.id}.jpg`;
+                link.href = canvas.toDataURL('image/jpeg', 0.9);
+                link.click();
+                
+                saveReceipt();
+                closePreview();
+                clearForm();
+            });
+        }
+        
+        // Share WhatsApp
+        function shareWhatsApp() {
+            if (!currentReceipt) return;
+            
+            const d = currentReceipt;
+            const txt = `*FEE RECEIPT* 📚%0A%0A` +
+                `No: ${d.id}%0A` +
+                `Date: ${d.date}%0A%0A` +
+                `Student: ${d.name}%0A` +
+                `Father: ${d.fname}%0A` +
+                `Class: ${d.cls}%0A` +
+                `Month: ${d.month}%0A` +
+                `Amount: PKR ${d.amt.toLocaleString()}%0A` +
+                `Status: ✅ PAID`;
+            
+            window.open('https://wa.me/?text=' + txt, '_blank');
+            
+            saveReceipt();
+            closePreview();
+            clearForm();
+        }
+        
+        // Save to history
+        function saveReceipt() {
+            receipts.unshift(currentReceipt);
+            localStorage.setItem('receipts', JSON.stringify(receipts));
+        }
+        
+        // Load history
+        function loadHistory() {
+            const list = document.getElementById('historyList');
+            
+            if (receipts.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>No receipts yet</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = receipts.map(r => `
+                <div class="history-card">
+                    <div class="history-info">
+                        <h4>${r.name}</h4>
+                        <p>${r.month} • ${r.date}</p>
+                    </div>
+                    <div class="history-amount">PKR ${r.amt.toLocaleString()}</div>
+                </div>
+            `).join('');
+        }
+        
+        // Clear form
+        function clearForm() {
+            document.getElementById('sName').value = '';
+            document.getElementById('fName').value = '';
+            document.getElementById('sClass').value = '';
+            document.getElementById('sMonth').value = '';
+            document.getElementById('sAmount').value = '';
+        }
+    </script>
+</body>
+</html>
